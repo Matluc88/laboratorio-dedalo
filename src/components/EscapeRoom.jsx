@@ -26,6 +26,12 @@ export default function DaedalusLab3D() {
   useEffect(() => {
     if (escaped) return;
 
+    // ========== M3-OPTIMIZED VERSION ==========
+    // Shadow maps: 1024x1024 (was 4096)
+    // Particles: 300 (was 2000)
+    // PixelRatio: 1 (locked for Retina)
+    // ==========================================
+
     // ========== SCENE SETUP ==========
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f0a15);
@@ -47,7 +53,7 @@ export default function DaedalusLab3D() {
       alpha: false
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(1); // Ottimizzato per M3
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -70,8 +76,8 @@ export default function DaedalusLab3D() {
     const mainLight = new THREE.SpotLight(0xffeacc, 15, 40, Math.PI / 6, 0.3, 1.5);
     mainLight.position.set(0, 9, 0);
     mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 4096;
-    mainLight.shadow.mapSize.height = 4096;
+    mainLight.shadow.mapSize.width = 1024; // Ottimizzato per M3
+    mainLight.shadow.mapSize.height = 1024; // Ottimizzato per M3
     mainLight.shadow.camera.near = 0.5;
     mainLight.shadow.camera.far = 50;
     mainLight.shadow.bias = -0.0001;
@@ -247,8 +253,8 @@ export default function DaedalusLab3D() {
       const light = new THREE.PointLight(0xff6600, 4, 12, 2);
       light.position.set(0, 4, 0.15);
       light.castShadow = true;
-      light.shadow.mapSize.width = 1024;
-      light.shadow.mapSize.height = 1024;
+      light.shadow.mapSize.width = 512; // Ottimizzato per M3
+      light.shadow.mapSize.height = 512; // Ottimizzato per M3
       torchGroup.add(light);
 
       torchGroup.position.set(x, 0, z);
@@ -610,7 +616,7 @@ export default function DaedalusLab3D() {
 
     // ========== ADVANCED PARTICLE SYSTEM ==========
     const createParticleSystem = () => {
-      const particleCount = 2000;
+      const particleCount = 300; // Ottimizzato per M3
       const positions = new Float32Array(particleCount * 3);
       const velocities = new Float32Array(particleCount * 3);
       
