@@ -17,6 +17,7 @@ export default function DaedalusLab3D() {
   const [inputValue, setInputValue] = useState('');
   const [feathersCollected, setFeathersCollected] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [victoryStage, setVictoryStage] = useState(0);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -24,20 +25,22 @@ export default function DaedalusLab3D() {
   };
 
   useEffect(() => {
+    if (escaped) {
+      setTimeout(() => setVictoryStage(1), 100);
+      setTimeout(() => setVictoryStage(2), 3000);
+      setTimeout(() => setVictoryStage(3), 6000);
+      setTimeout(() => setVictoryStage(4), 9000);
+      setTimeout(() => setVictoryStage(5), 10000);
+    }
+  }, [escaped]);
+
+  useEffect(() => {
     if (escaped) return;
 
-    // ========== M3-OPTIMIZED VERSION ==========
-    // Shadow maps: 1024x1024 (was 4096)
-    // Particles: 300 (was 2000)
-    // PixelRatio: 1 (locked for Retina)
-    // ==========================================
-
-    // ========== SCENE SETUP ==========
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f0a15);
-    scene.fog = new THREE.FogExp2(0x1a1520, 0.015);
+    scene.fog = new THREE.FogExp2(0x1a1520, 0.012);
 
-    // ========== CAMERA ==========
     const camera = new THREE.PerspectiveCamera(
       70,
       window.innerWidth / window.innerHeight,
@@ -46,116 +49,87 @@ export default function DaedalusLab3D() {
     );
     camera.position.set(0, 1.7, 10);
 
-    // ========== RENDERER ==========
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true,
       powerPreference: "high-performance",
-      alpha: false
+      alpha: false,
+      stencil: false
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(1); // Ottimizzato per M3
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.physicallyCorrectLights = true;
     mountRef.current.appendChild(renderer.domElement);
 
-    // ========== ADVANCED LIGHTING ==========
-    
-    // Ambient light (simulated HDRI)
-    const ambientLight = new THREE.AmbientLight(0x6b5d42, 0.3);
+    const ambientLight = new THREE.AmbientLight(0x6b5d42, 0.5);
     scene.add(ambientLight);
 
-    // Hemisphere light for realistic ambient
-    const hemiLight = new THREE.HemisphereLight(0x8d7a5c, 0x2d1f1a, 0.5);
+    const hemiLight = new THREE.HemisphereLight(0x8d7a5c, 0x2d1f1a, 0.7);
     scene.add(hemiLight);
 
-    // Main ceiling light (golden sunbeam)
-    const mainLight = new THREE.SpotLight(0xffeacc, 15, 40, Math.PI / 6, 0.3, 1.5);
+    const mainLight = new THREE.SpotLight(0xffeacc, 20, 45, Math.PI / 5, 0.3, 1.5);
     mainLight.position.set(0, 9, 0);
     mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 1024; // Ottimizzato per M3
-    mainLight.shadow.mapSize.height = 1024; // Ottimizzato per M3
-    mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 50;
-    mainLight.shadow.bias = -0.0001;
+    mainLight.shadow.mapSize.width = 1024;
+    mainLight.shadow.mapSize.height = 1024;
+    mainLight.shadow.camera.near = 1;
+    mainLight.shadow.camera.far = 40;
+    mainLight.shadow.bias = -0.001;
     scene.add(mainLight);
 
-    // God rays effect (simulated with light)
-    const godRayLight = new THREE.DirectionalLight(0xffd699, 2);
-    godRayLight.position.set(-5, 10, -5);
-    scene.add(godRayLight);
+    const fillLight = new THREE.DirectionalLight(0xffd699, 1.2);
+    fillLight.position.set(-5, 8, -5);
+    scene.add(fillLight);
 
-    // ========== PHOTOREALISTIC MATERIALS ==========
-    
-    // Marble floor with PBR
-    const floorGeometry = new THREE.PlaneGeometry(22, 22, 50, 50);
+    const floorGeometry = new THREE.PlaneGeometry(22, 22);
     const floorMaterial = new THREE.MeshStandardMaterial({
       color: 0xe8dcc8,
-      roughness: 0.4,
-      metalness: 0.1,
-      envMapIntensity: 1.5
+      roughness: 0.5,
+      metalness: 0.1
     });
-    
-    // Add displacement for marble veins
-    const vertices = floorGeometry.attributes.position.array;
-    for (let i = 0; i < vertices.length; i += 3) {
-      vertices[i + 2] += Math.sin(vertices[i] * 0.5) * Math.cos(vertices[i + 1] * 0.5) * 0.05;
-    }
-    floorGeometry.computeVertexNormals();
-    
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Ceiling
     const ceilingMaterial = new THREE.MeshStandardMaterial({
       color: 0x4a3f2f,
-      roughness: 0.8,
-      metalness: 0.05
+      roughness: 0.8
     });
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(22, 22), ceilingMaterial);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = 9;
-    ceiling.receiveShadow = true;
     scene.add(ceiling);
 
-    // ========== GREEK COLUMNS ==========
     const createColumn = (x, z) => {
       const columnGroup = new THREE.Group();
-      
-      // Column material - weathered marble
       const columnMaterial = new THREE.MeshStandardMaterial({
         color: 0xddd5c7,
         roughness: 0.6,
-        metalness: 0.05,
-        normalScale: new THREE.Vector2(0.5, 0.5)
+        metalness: 0.05
       });
 
-      // Base
       const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.6, 0.7, 0.5, 16),
+        new THREE.CylinderGeometry(0.6, 0.7, 0.5, 12),
         columnMaterial
       );
       base.position.y = 0.25;
       base.castShadow = true;
       columnGroup.add(base);
 
-      // Shaft with fluting
       const shaft = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.5, 0.5, 6, 20),
+        new THREE.CylinderGeometry(0.5, 0.5, 6, 12),
         columnMaterial
       );
       shaft.position.y = 3.5;
       shaft.castShadow = true;
       columnGroup.add(shaft);
 
-      // Capital
       const capital = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.7, 0.5, 0.8, 16),
+        new THREE.CylinderGeometry(0.7, 0.5, 0.8, 12),
         columnMaterial
       );
       capital.position.y = 7;
@@ -166,19 +140,16 @@ export default function DaedalusLab3D() {
       return columnGroup;
     };
 
-    const columns = [
+    [
       createColumn(-8, -8),
       createColumn(8, -8),
       createColumn(-8, 8),
       createColumn(8, 8)
-    ];
-    columns.forEach(col => scene.add(col));
+    ].forEach(col => scene.add(col));
 
-    // ========== WALLS WITH DETAILS ==========
     const wallMaterial = new THREE.MeshStandardMaterial({
       color: 0x5a4f3d,
-      roughness: 0.85,
-      metalness: 0.05
+      roughness: 0.85
     });
 
     const createWall = (width, height, position, rotation) => {
@@ -189,7 +160,6 @@ export default function DaedalusLab3D() {
       wall.position.copy(position);
       wall.rotation.y = rotation;
       wall.receiveShadow = true;
-      wall.castShadow = true;
       return wall;
     };
 
@@ -199,36 +169,25 @@ export default function DaedalusLab3D() {
     scene.add(createWall(8, 9, new THREE.Vector3(-7, 4.5, 11), Math.PI));
     scene.add(createWall(8, 9, new THREE.Vector3(7, 4.5, 11), Math.PI));
 
-    // ========== ANIMATED TORCHES ==========
     const torches = [];
     const createTorch = (x, z) => {
       const torchGroup = new THREE.Group();
       
-      // Wall mount
       const mount = new THREE.Mesh(
         new THREE.BoxGeometry(0.3, 0.6, 0.15),
-        new THREE.MeshStandardMaterial({ 
-          color: 0x3a2a1a, 
-          roughness: 0.8, 
-          metalness: 0.3 
-        })
+        new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.8 })
       );
       mount.position.y = 3;
       torchGroup.add(mount);
 
-      // Torch holder
       const holder = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.08, 0.08, 0.6, 8),
-        new THREE.MeshStandardMaterial({ 
-          color: 0x8b4513, 
-          roughness: 0.7 
-        })
+        new THREE.CylinderGeometry(0.08, 0.08, 0.6, 6),
+        new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 })
       );
       holder.position.set(0, 3.5, 0.15);
       torchGroup.add(holder);
 
-      // Flame
-      const flameGeometry = new THREE.ConeGeometry(0.15, 0.5, 8);
+      const flameGeometry = new THREE.ConeGeometry(0.15, 0.5, 6);
       const flameMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xff6600,
         transparent: true,
@@ -238,8 +197,7 @@ export default function DaedalusLab3D() {
       flame.position.set(0, 4, 0.15);
       torchGroup.add(flame);
 
-      // Glow
-      const glowGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+      const glowGeometry = new THREE.SphereGeometry(0.3, 8, 8);
       const glowMaterial = new THREE.MeshBasicMaterial({
         color: 0xff8800,
         transparent: true,
@@ -249,12 +207,8 @@ export default function DaedalusLab3D() {
       glow.position.set(0, 4, 0.15);
       torchGroup.add(glow);
 
-      // Point light
-      const light = new THREE.PointLight(0xff6600, 4, 12, 2);
+      const light = new THREE.PointLight(0xff6600, 3, 10, 2);
       light.position.set(0, 4, 0.15);
-      light.castShadow = true;
-      light.shadow.mapSize.width = 512; // Ottimizzato per M3
-      light.shadow.mapSize.height = 512; // Ottimizzato per M3
       torchGroup.add(light);
 
       torchGroup.position.set(x, 0, z);
@@ -267,17 +221,13 @@ export default function DaedalusLab3D() {
     torches.push(createTorch(9, 9));
     torches.forEach(t => scene.add(t.group));
 
-    // ========== INTERACTIVE OBJECTS ==========
     const interactiveObjects = [];
 
-    // ========== EPIC DOOR WITH GOLDEN LOCK ==========
     const doorGroup = new THREE.Group();
     
-    // Door planks
     const doorMaterial = new THREE.MeshStandardMaterial({
       color: 0x4a2f1a,
-      roughness: 0.8,
-      metalness: 0.1
+      roughness: 0.8
     });
     
     const leftDoor = new THREE.Mesh(
@@ -296,7 +246,6 @@ export default function DaedalusLab3D() {
     rightDoor.castShadow = true;
     doorGroup.add(rightDoor);
 
-    // Door frame
     const frameMaterial = new THREE.MeshStandardMaterial({
       color: 0x8b7355,
       roughness: 0.6
@@ -309,7 +258,6 @@ export default function DaedalusLab3D() {
     frameTop.position.y = 3.2;
     doorGroup.add(frameTop);
 
-    // MASSIVE GOLDEN LOCK
     const lockGeometry = new THREE.BoxGeometry(1.2, 1.5, 0.4);
     const lockMaterial = new THREE.MeshStandardMaterial({
       color: 0xffd700,
@@ -323,9 +271,8 @@ export default function DaedalusLab3D() {
     lock.castShadow = true;
     doorGroup.add(lock);
 
-    // Lock glow effect
     const lockGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 32, 32),
+      new THREE.SphereGeometry(1, 16, 16),
       new THREE.MeshBasicMaterial({
         color: 0xffee00,
         transparent: true,
@@ -340,29 +287,21 @@ export default function DaedalusLab3D() {
     scene.add(doorGroup);
     interactiveObjects.push(doorGroup);
 
-    // Door spotlight
-    const doorSpot = new THREE.SpotLight(0xffeeaa, 5, 15, Math.PI / 5, 0.4);
+    const doorSpot = new THREE.SpotLight(0xffeeaa, 4, 15, Math.PI / 5, 0.4);
     doorSpot.position.set(0, 8, 9);
     doorSpot.target = doorGroup;
-    doorSpot.castShadow = true;
     scene.add(doorSpot);
 
-    // ========== 1. ANIMATED MANUSCRIPT ==========
     const manuscriptGroup = new THREE.Group();
     
-    // Pedestal
     const pedestal = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5, 0.6, 1, 16),
-      new THREE.MeshStandardMaterial({ 
-        color: 0x5a4a3a, 
-        roughness: 0.7 
-      })
+      new THREE.CylinderGeometry(0.5, 0.6, 1, 12),
+      new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.7 })
     );
     pedestal.position.y = 0.5;
     pedestal.castShadow = true;
     manuscriptGroup.add(pedestal);
 
-    // Manuscript pages
     const pageMaterial = new THREE.MeshStandardMaterial({
       color: 0xf4e8d0,
       roughness: 0.9,
@@ -389,21 +328,16 @@ export default function DaedalusLab3D() {
 
     manuscriptGroup.position.set(-7.5, 0, -7.5);
     manuscriptGroup.userData = { type: 'manuscript', name: 'Manoscritto di Omero' };
-    manuscriptGroup.castShadow = true;
     scene.add(manuscriptGroup);
     interactiveObjects.push(manuscriptGroup);
 
-    // Manuscript spotlight
-    const manuscriptLight = new THREE.SpotLight(0xffdd88, 3, 8, Math.PI / 6, 0.5);
+    const manuscriptLight = new THREE.SpotLight(0xffdd88, 2.5, 8, Math.PI / 6, 0.5);
     manuscriptLight.position.set(-7.5, 6, -7.5);
     manuscriptLight.target = manuscriptGroup;
-    manuscriptLight.castShadow = true;
     scene.add(manuscriptLight);
 
-    // ========== 2. ANIMATED CONSTELLATION ==========
     const constellationGroup = new THREE.Group();
     
-    // Star map background
     const starMap = new THREE.Mesh(
       new THREE.PlaneGeometry(3, 3),
       new THREE.MeshStandardMaterial({
@@ -416,7 +350,6 @@ export default function DaedalusLab3D() {
     starMap.position.z = -0.1;
     constellationGroup.add(starMap);
 
-    // Animated stars
     const stars = [];
     const starPositions = [
       [-0.8, 0.6], [-0.4, 0.5], [0, 0.4], [0.4, 0.3], [0.7, 0.1],
@@ -426,7 +359,7 @@ export default function DaedalusLab3D() {
 
     starPositions.forEach((pos, i) => {
       const star = new THREE.Mesh(
-        new THREE.SphereGeometry(0.06, 12, 12),
+        new THREE.SphereGeometry(0.06, 8, 8),
         new THREE.MeshBasicMaterial({ 
           color: 0xffffee,
           transparent: true,
@@ -435,8 +368,7 @@ export default function DaedalusLab3D() {
       );
       star.position.set(pos[0], pos[1], 0);
       
-      // Star glow
-      const starGlow = new THREE.PointLight(0xffffaa, 0.5, 1);
+      const starGlow = new THREE.PointLight(0xffffaa, 0.4, 1);
       starGlow.position.copy(star.position);
       constellationGroup.add(starGlow);
       
@@ -449,22 +381,16 @@ export default function DaedalusLab3D() {
     scene.add(constellationGroup);
     interactiveObjects.push(constellationGroup);
 
-    // ========== 3. LABYRINTH WITH MARBLE BALL ==========
     const labyrinthGroup = new THREE.Group();
     
-    // Table base
     const tableBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.6, 0.7, 0.8, 16),
-      new THREE.MeshStandardMaterial({ 
-        color: 0x4a3a2a, 
-        roughness: 0.7 
-      })
+      new THREE.CylinderGeometry(0.6, 0.7, 0.8, 12),
+      new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.7 })
     );
     tableBase.position.y = 0.4;
     tableBase.castShadow = true;
     labyrinthGroup.add(tableBase);
 
-    // Labyrinth board
     const boardMaterial = new THREE.MeshStandardMaterial({
       color: 0x6b4423,
       roughness: 0.8
@@ -477,11 +403,7 @@ export default function DaedalusLab3D() {
     board.castShadow = true;
     labyrinthGroup.add(board);
 
-    // Maze walls
-    const wallMat = new THREE.MeshStandardMaterial({ 
-      color: 0x2a2a2a, 
-      roughness: 0.6 
-    });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 });
     
     const mazeWalls = [
       { x: -0.5, z: 0.5, w: 0.6, d: 0.08 },
@@ -498,13 +420,11 @@ export default function DaedalusLab3D() {
         wallMat
       );
       mazeWall.position.set(wall.x, 0.95, wall.z);
-      mazeWall.castShadow = true;
       labyrinthGroup.add(mazeWall);
     });
 
-    // Marble ball
     const ball = new THREE.Mesh(
-      new THREE.SphereGeometry(0.08, 32, 32),
+      new THREE.SphereGeometry(0.08, 16, 16),
       new THREE.MeshStandardMaterial({
         color: 0xcccccc,
         roughness: 0.2,
@@ -520,12 +440,10 @@ export default function DaedalusLab3D() {
     scene.add(labyrinthGroup);
     interactiveObjects.push(labyrinthGroup);
 
-    // ========== 4. GOLDEN FEATHERS ==========
     const featherObjects = [];
     for (let i = 0; i < 12; i++) {
       const featherGroup = new THREE.Group();
       
-      // Feather geometry
       const featherGeometry = new THREE.ConeGeometry(0.08, 0.4, 4);
       const featherMaterial = new THREE.MeshStandardMaterial({
         color: 0xffd700,
@@ -538,8 +456,7 @@ export default function DaedalusLab3D() {
       feather.castShadow = true;
       featherGroup.add(feather);
 
-      // Feather glow
-      const featherGlow = new THREE.PointLight(0xffdd00, 1, 2);
+      const featherGlow = new THREE.PointLight(0xffdd00, 0.8, 2);
       featherGlow.position.y = 0.2;
       featherGroup.add(featherGlow);
 
@@ -558,12 +475,10 @@ export default function DaedalusLab3D() {
       featherObjects.push({ group: featherGroup, angle: angle, radius: radius });
     }
 
-    // ========== 5. COMPASS OF ULYSSES ==========
     const compassGroup = new THREE.Group();
     
-    // Compass base
     const compassBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5, 0.5, 0.2, 32),
+      new THREE.CylinderGeometry(0.5, 0.5, 0.2, 16),
       new THREE.MeshStandardMaterial({
         color: 0x8b6914,
         metalness: 0.8,
@@ -573,9 +488,8 @@ export default function DaedalusLab3D() {
     compassBase.castShadow = true;
     compassGroup.add(compassBase);
 
-    // Compass glass
     const compassGlass = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.48, 0.48, 0.05, 32),
+      new THREE.CylinderGeometry(0.48, 0.48, 0.05, 16),
       new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         metalness: 0,
@@ -587,7 +501,6 @@ export default function DaedalusLab3D() {
     compassGlass.position.y = 0.15;
     compassGroup.add(compassGlass);
 
-    // Needle (red)
     const needle = new THREE.Mesh(
       new THREE.ConeGeometry(0.04, 0.5, 4),
       new THREE.MeshStandardMaterial({
@@ -603,20 +516,17 @@ export default function DaedalusLab3D() {
     needle.castShadow = true;
     compassGroup.add(needle);
 
-    // Compass glow
-    const compassGlow = new THREE.PointLight(0x0088ff, 2, 3);
+    const compassGlow = new THREE.PointLight(0x0088ff, 1.5, 3);
     compassGlow.position.y = 0.3;
     compassGroup.add(compassGlow);
 
     compassGroup.position.set(7.5, 1.3, 7.5);
     compassGroup.userData = { type: 'compass', name: 'Bussola di Ulisse' };
-    compassGroup.castShadow = true;
     scene.add(compassGroup);
     interactiveObjects.push(compassGroup);
 
-    // ========== ADVANCED PARTICLE SYSTEM ==========
     const createParticleSystem = () => {
-      const particleCount = 300; // Ottimizzato per M3
+      const particleCount = 80;
       const positions = new Float32Array(particleCount * 3);
       const velocities = new Float32Array(particleCount * 3);
       
@@ -635,7 +545,7 @@ export default function DaedalusLab3D() {
       
       const material = new THREE.PointsMaterial({
         color: 0xdddddd,
-        size: 0.04,
+        size: 0.05,
         transparent: true,
         opacity: 0.5,
         sizeAttenuation: true,
@@ -649,7 +559,6 @@ export default function DaedalusLab3D() {
     const dustSystem = createParticleSystem();
     scene.add(dustSystem.particles);
 
-    // ========== RAYCASTER & INTERACTIONS ==========
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -726,7 +635,6 @@ export default function DaedalusLab3D() {
       if (type === 'door') {
         const allSolved = Object.values(puzzles).every(v => v);
         if (allSolved) {
-          // Animate door opening
           setEscaped(true);
         } else {
           const remaining = Object.values(puzzles).filter(v => !v).length;
@@ -759,7 +667,6 @@ export default function DaedalusLab3D() {
     renderer.domElement.addEventListener('click', onClick);
     renderer.domElement.addEventListener('contextmenu', onContextMenu);
 
-    // ========== KEYBOARD CONTROLS ==========
     const keys = {};
     window.addEventListener('keydown', (e) => {
       keys[e.key.toLowerCase()] = true;
@@ -768,7 +675,6 @@ export default function DaedalusLab3D() {
       keys[e.key.toLowerCase()] = false;
     });
 
-    // ========== ANIMATION LOOP ==========
     let time = 0;
     const clock = new THREE.Clock();
     
@@ -779,19 +685,17 @@ export default function DaedalusLab3D() {
       const delta = clock.getDelta();
       time += delta;
 
-      // Camera controls
       camera.rotation.order = 'YXZ';
       camera.rotation.y = rotationY;
       camera.rotation.x = rotationX;
 
-      // WASD Movement
       const moveSpeed = 0.15;
       const direction = new THREE.Vector3();
       
-      if (keys['w']) direction.z = 1;
-      if (keys['s']) direction.z = -1;
-      if (keys['a']) direction.x = -1;
-      if (keys['d']) direction.x = 1;
+      if (keys['w'] || keys['arrowup']) direction.z = 1;
+      if (keys['s'] || keys['arrowdown']) direction.z = -1;
+      if (keys['a'] || keys['arrowleft']) direction.x = -1;
+      if (keys['d'] || keys['arrowright']) direction.x = 1;
 
       if (direction.length() > 0) {
         direction.normalize();
@@ -806,49 +710,42 @@ export default function DaedalusLab3D() {
       camera.position.x = Math.max(-9.5, Math.min(9.5, camera.position.x));
       camera.position.z = Math.max(-9.5, Math.min(9.5, camera.position.z));
 
-      // Animate torches
       torches.forEach((torch, i) => {
         const flicker = Math.sin(time * 6 + i * 2) * 0.5 + Math.cos(time * 8 + i) * 0.3;
-        torch.light.intensity = 4 + flicker;
-        torch.flame.scale.y = 1 + flicker * 0.2;
-        torch.glow.scale.setScalar(1 + flicker * 0.15);
+        torch.light.intensity = 3 + flicker * 0.5;
+        torch.flame.scale.y = 1 + flicker * 0.15;
+        torch.glow.scale.setScalar(1 + flicker * 0.1);
       });
 
-      // Animate manuscript pages
       pageLeft.rotation.y = -Math.PI / 8 + Math.sin(time * 0.5) * 0.05;
       pageRight.rotation.y = Math.PI / 8 - Math.sin(time * 0.5) * 0.05;
       manuscriptGroup.position.y = Math.sin(time * 0.8) * 0.05;
 
-      // Animate stars
       stars.forEach((star, i) => {
         const pulse = Math.sin(time * 2 + star.phase) * 0.5 + 0.5;
         star.mesh.material.opacity = 0.6 + pulse * 0.4;
-        star.light.intensity = 0.3 + pulse * 0.4;
+        star.light.intensity = 0.2 + pulse * 0.3;
         star.mesh.scale.setScalar(0.8 + pulse * 0.4);
       });
 
-      // Animate labyrinth ball
       ball.position.x = -0.5 + Math.sin(time * 0.7) * 0.2;
       ball.position.z = 0.5 + Math.cos(time * 0.9) * 0.2;
       ball.rotation.x += 0.02;
       ball.rotation.z += 0.015;
 
-      // Animate feathers
       featherObjects.forEach((f, i) => {
         if (f.group.parent) {
           f.group.rotation.y = time + i * 0.5;
           f.group.position.y = 0.3 + Math.sin(time * 2 + i) * 0.1;
           
           const pulse = Math.sin(time * 3 + i) * 0.5 + 0.5;
-          f.group.children[0].material.emissiveIntensity = 0.4 + pulse * 0.4;
+          f.group.children[0].material.emissiveIntensity = 0.4 + pulse * 0.3;
         }
       });
 
-      // Animate compass needle
       needle.rotation.z = Math.sin(time * 0.5) * 0.3;
-      compassGlow.intensity = 2 + Math.sin(time * 2) * 0.5;
+      compassGlow.intensity = 1.5 + Math.sin(time * 2) * 0.5;
 
-      // Animate door lock when all puzzles solved
       if (Object.values(puzzles).every(v => v)) {
         const pulse = Math.sin(time * 5) * 0.5 + 1.5;
         lock.scale.setScalar(pulse);
@@ -857,7 +754,6 @@ export default function DaedalusLab3D() {
         lockGlow.material.opacity = 0.3 + Math.sin(time * 5) * 0.3;
       }
 
-      // Update particles
       const positions = dustSystem.positions;
       const velocities = dustSystem.velocities;
       for (let i = 0; i < positions.length; i += 3) {
@@ -878,7 +774,6 @@ export default function DaedalusLab3D() {
 
     animate();
 
-    // ========== WINDOW RESIZE ==========
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -886,7 +781,6 @@ export default function DaedalusLab3D() {
     };
     window.addEventListener('resize', onResize);
 
-    // ========== CLEANUP ==========
     return () => {
       renderer.domElement.removeEventListener('mousedown', onMouseDown);
       renderer.domElement.removeEventListener('mouseup', onMouseUp);
@@ -943,47 +837,330 @@ export default function DaedalusLab3D() {
 
   if (escaped) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-950 via-orange-900 to-yellow-700 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20">
-          {[...Array(100)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute bg-amber-300 rounded-full"
-              style={{
-                width: Math.random() * 4 + 2 + 'px',
-                height: Math.random() * 4 + 2 + 'px',
-                left: Math.random() * 100 + '%',
-                top: Math.random() * 100 + '%',
-                animation: `twinkle ${Math.random() * 3 + 2}s infinite`
-              }}
-            />
-          ))}
-        </div>
-        <div className="bg-black/80 backdrop-blur-md border-4 border-amber-400 rounded-2xl p-16 max-w-4xl text-center shadow-2xl relative z-10">
-          <div className="text-9xl mb-8 animate-bounce">🏛️</div>
-          <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300 mb-8 tracking-wider drop-shadow-2xl">
-            LIBERTÀ!
-          </h1>
-          <p className="text-3xl text-amber-100 mb-8 font-semibold">
-            🎉 Hai risolto tutti gli enigmi di Dedalo!
-          </p>
-          <div className="bg-amber-900/40 border-2 border-amber-600 rounded-lg p-8 mb-6">
-            <p className="text-xl text-amber-200 italic leading-relaxed">
-              Come <span className="text-amber-300 font-bold">Ulisse</span> che ritornò ad Itaca,<br/>
-              come <span className="text-amber-300 font-bold">Dedalo</span> che fuggì con le ali,<br/>
-              anche tu hai dimostrato <span className="text-yellow-300">saggezza</span> e <span className="text-yellow-300">ingegno</span>.
-            </p>
+      <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
+        
+        {victoryStage >= 1 && victoryStage < 2 && (
+          <div className="absolute inset-0 flex items-center justify-center z-50 animate-fadeIn">
+            <div className="text-center animate-zoomIn">
+              <img 
+                src="https://www.ulisse.eu/themes/custom/ulisse/logo.svg" 
+                alt="ULISSE" 
+                className="w-96 h-auto mx-auto mb-8 drop-shadow-2xl animate-glow"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'block';
+                }}
+              />
+              <div style={{display: 'none'}} className="text-9xl font-black text-orange-500">
+                ULISSE
+              </div>
+              <p className="text-3xl text-orange-400 font-bold mt-6 animate-pulse">
+                FORMAZIONE CHE FA LA DIFFERENZA
+              </p>
+            </div>
           </div>
-          <div className="flex gap-4 justify-center text-5xl mt-8">
-            <span className="animate-pulse">⭐</span>
-            <span className="animate-pulse" style={{animationDelay: '0.2s'}}>🏆</span>
-            <span className="animate-pulse" style={{animationDelay: '0.4s'}}>⭐</span>
+        )}
+
+        {victoryStage >= 2 && victoryStage < 4 && (
+          <div className="absolute inset-0 z-40">
+            <div className="absolute inset-0 animate-tunnel">
+              {[...Array(100)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute bg-white rounded-full animate-warp"
+                  style={{
+                    width: Math.random() * 6 + 2 + 'px',
+                    height: Math.random() * 6 + 2 + 'px',
+                    left: Math.random() * 100 + '%',
+                    top: Math.random() * 100 + '%',
+                    animationDelay: `${Math.random() * 2}s`,
+                    animationDuration: `${Math.random() * 1 + 0.5}s`
+                  }}
+                />
+              ))}
+            </div>
+
+            {[...Array(15)].map((_, i) => (
+              <div
+                key={`ring-${i}`}
+                className="absolute top-1/2 left-1/2 border-4 border-cyan-500 rounded-full animate-expandRing"
+                style={{
+                  width: `${i * 100}px`,
+                  height: `${i * 100}px`,
+                  marginLeft: `-${i * 50}px`,
+                  marginTop: `-${i * 50}px`,
+                  animationDelay: `${i * 0.1}s`,
+                  opacity: 1 - i * 0.06
+                }}
+              />
+            ))}
+
+            {[...Array(50)].map((_, i) => (
+              <div
+                key={`star-${i}`}
+                className="absolute text-white text-4xl animate-flyToCenter"
+                style={{
+                  left: Math.random() * 100 + '%',
+                  top: Math.random() * 100 + '%',
+                  animationDelay: `${Math.random() * 2}s`
+                }}
+              >
+                ⭐
+              </div>
+            ))}
+
+            {victoryStage >= 3 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center animate-zoomInMassive">
+                  <h1 className="text-[20rem] font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 drop-shadow-2xl animate-pulse">
+                    2025
+                  </h1>
+                  <p className="text-5xl text-white font-bold mt-8 animate-fadeIn">
+                    🚀 Benvenuto nel Futuro
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {victoryStage >= 4 && victoryStage < 5 && (
+          <div className="absolute inset-0 z-50 bg-white animate-tvShutdown">
+            <div className="absolute top-0 left-0 right-0 bottom-0 bg-black animate-tvLine" />
+            
+            <div className="absolute inset-0 opacity-30 animate-pulse">
+              {[...Array(1000)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute"
+                  style={{
+                    width: '2px',
+                    height: '2px',
+                    left: Math.random() * 100 + '%',
+                    top: Math.random() * 100 + '%',
+                    backgroundColor: Math.random() > 0.5 ? '#fff' : '#000'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {victoryStage >= 5 && (
+          <div className="absolute inset-0 bg-black flex items-center justify-center z-50 animate-fadeInSlow">
+            <div className="max-w-5xl text-center px-8">
+              <div className="mb-12 animate-fadeInSlow" style={{animationDelay: '0.5s'}}>
+                <img 
+                  src="https://www.ulisse.eu/themes/custom/ulisse/logo.svg" 
+                  alt="ULISSE" 
+                  className="w-48 h-auto mx-auto opacity-70"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'block';
+                  }}
+                />
+                <div style={{display: 'none'}} className="text-5xl font-black text-orange-500">
+                  ULISSE
+                </div>
+              </div>
+
+              <div className="text-9xl mb-12 animate-bounceIn" style={{animationDelay: '1s'}}>
+                🏛️
+              </div>
+              
+              <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300 mb-12 tracking-wider drop-shadow-2xl animate-fadeInSlow" style={{animationDelay: '1.2s'}}>
+                CONGRATULAZIONI!
+              </h1>
+
+              <div className="bg-gradient-to-r from-orange-900/40 via-amber-900/40 to-orange-900/40 backdrop-blur-md border-4 border-orange-500/50 rounded-2xl p-12 mb-12 animate-fadeInSlow" style={{animationDelay: '1.5s'}}>
+                <p className="text-3xl text-amber-100 mb-8 leading-relaxed">
+                  <span className="text-orange-400 font-black">Hai superato</span> le prove di <span className="text-amber-300 font-bold">Dedalo</span>!
+                </p>
+                
+                <div className="h-1 w-64 bg-gradient-to-r from-transparent via-orange-500 to-transparent mx-auto my-8"></div>
+                
+                <p className="text-2xl text-amber-200 italic leading-relaxed mb-6">
+                  Come <span className="text-amber-300 font-bold">Ulisse</span> che ritornò ad Itaca dopo infinite peripezie,<br/>
+                  come <span className="text-amber-300 font-bold">Dedalo</span> che conquistò i cieli con l'ingegno,
+                </p>
+                
+                <p className="text-4xl text-yellow-300 font-black mt-8 animate-pulse">
+                  TU HAI DIMOSTRATO CHE NULLA<br/>È IMPOSSIBILE!
+                </p>
+              </div>
+
+              <div className="bg-black/60 border-2 border-orange-500/50 rounded-xl p-8 mb-8 animate-fadeInSlow" style={{animationDelay: '2s'}}>
+                <p className="text-2xl text-orange-300 font-bold mb-4">
+                  💡 La vera formazione non è solo apprendere...
+                </p>
+                <p className="text-3xl text-amber-200 font-black">
+                  È TRASFORMARE LA CONOSCENZA<br/>
+                  IN <span className="text-yellow-400">AZIONE</span> E <span className="text-yellow-400">RISULTATI</span>
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-8 text-6xl mt-12 animate-fadeInSlow" style={{animationDelay: '2.5s'}}>
+                <span className="animate-bounce" style={{animationDelay: '0s'}}>🌟</span>
+                <span className="animate-bounce" style={{animationDelay: '0.2s'}}>🏆</span>
+                <span className="animate-bounce" style={{animationDelay: '0.4s'}}>🚀</span>
+                <span className="animate-bounce" style={{animationDelay: '0.6s'}}>⭐</span>
+              </div>
+
+              <p className="text-xl text-gray-400 mt-12 italic animate-fadeInSlow" style={{animationDelay: '3s'}}>
+                ULISSE - Formazione che fa la differenza
+              </p>
+            </div>
+          </div>
+        )}
+
         <style jsx>{`
-          @keyframes twinkle {
-            0%, 100% { opacity: 0.2; }
-            50% { opacity: 1; }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+
+          @keyframes fadeInSlow {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+
+          @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+          }
+
+          @keyframes zoomInMassive {
+            from { opacity: 0; transform: scale(0.1) rotateY(90deg); }
+            to { opacity: 1; transform: scale(1) rotateY(0deg); }
+          }
+
+          @keyframes bounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.1); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+          }
+
+          @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.8)); }
+            50% { filter: drop-shadow(0 0 40px rgba(249, 115, 22, 1)); }
+          }
+
+          @keyframes tunnel {
+            0% { transform: scale(1); }
+            100% { transform: scale(2); }
+          }
+
+          @keyframes warp {
+            0% { 
+              transform: translate(0, 0) scale(0.1);
+              opacity: 0;
+            }
+            50% {
+              opacity: 1;
+            }
+            100% { 
+              transform: translate(var(--tx, 50vw), var(--ty, 50vh)) scale(2);
+              opacity: 0;
+            }
+          }
+
+          @keyframes expandRing {
+            0% { 
+              transform: scale(0);
+              opacity: 1;
+            }
+            100% { 
+              transform: scale(4);
+              opacity: 0;
+            }
+          }
+
+          @keyframes flyToCenter {
+            0% { 
+              transform: translate(0, 0) scale(1);
+              opacity: 1;
+            }
+            100% { 
+              transform: translate(calc(50vw - 50%), calc(50vh - 50%)) scale(0);
+              opacity: 0;
+            }
+          }
+
+          @keyframes tvShutdown {
+            0% { 
+              opacity: 1;
+              transform: scaleY(1);
+            }
+            90% {
+              opacity: 1;
+              transform: scaleY(0.1);
+            }
+            100% { 
+              opacity: 0;
+              transform: scaleY(0);
+            }
+          }
+
+          @keyframes tvLine {
+            0% { 
+              clip-path: inset(0 0 0 0);
+            }
+            100% { 
+              clip-path: inset(49.5% 0 49.5% 0);
+            }
+          }
+
+          .animate-fadeIn {
+            animation: fadeIn 1s ease-out forwards;
+          }
+
+          .animate-fadeInSlow {
+            animation: fadeInSlow 1s ease-out forwards;
+            opacity: 0;
+          }
+
+          .animate-zoomIn {
+            animation: zoomIn 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          }
+
+          .animate-zoomInMassive {
+            animation: zoomInMassive 2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          }
+
+          .animate-bounceIn {
+            animation: bounceIn 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+            opacity: 0;
+          }
+
+          .animate-glow {
+            animation: glow 2s ease-in-out infinite;
+          }
+
+          .animate-tunnel {
+            animation: tunnel 3s linear infinite;
+          }
+
+          .animate-warp {
+            animation: warp 2s ease-out infinite;
+            --tx: calc(50vw - 50%);
+            --ty: calc(50vh - 50%);
+          }
+
+          .animate-expandRing {
+            animation: expandRing 3s ease-out infinite;
+          }
+
+          .animate-flyToCenter {
+            animation: flyToCenter 2s ease-in infinite;
+          }
+
+          .animate-tvShutdown {
+            animation: tvShutdown 1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+          }
+
+          .animate-tvLine {
+            animation: tvLine 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
           }
         `}</style>
       </div>
@@ -1006,7 +1183,6 @@ export default function DaedalusLab3D() {
       
       <div ref={mountRef} className="w-full h-full" />
       
-      {/* HUD - Top Left */}
       <div className="absolute top-6 left-6 bg-gradient-to-br from-black/90 to-stone-900/90 backdrop-blur-md text-white p-6 rounded-2xl max-w-md border-2 border-amber-600/50 shadow-2xl">
         <h2 className="text-3xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-400">
           🏛️ Il Laboratorio di Dedalo
@@ -1029,8 +1205,8 @@ export default function DaedalusLab3D() {
           <div className="flex items-center gap-3 bg-stone-800/50 p-3 rounded-lg">
             <span className="text-2xl">👆</span>
             <div>
-              <strong className="text-amber-400 block">Click Sinistro</strong>
-              <span className="text-xs">Interagisci con oggetti</span>
+              <strong className="text-amber-400 block">Click</strong>
+              <span className="text-xs">Interagisci</span>
             </div>
           </div>
         </div>
@@ -1072,7 +1248,6 @@ export default function DaedalusLab3D() {
         )}
       </div>
 
-      {/* Inventory - Top Right */}
       <div className="absolute top-6 right-6 bg-gradient-to-br from-black/90 to-stone-900/90 backdrop-blur-md text-white p-6 rounded-2xl max-w-xs border-2 border-amber-600/50 shadow-2xl">
         <h3 className="text-2xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-400">
           📦 Inventario
@@ -1095,7 +1270,6 @@ export default function DaedalusLab3D() {
         </div>
       </div>
 
-      {/* Notification */}
       {notification && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
           <div className="bg-gradient-to-r from-amber-600 to-yellow-500 text-white px-12 py-6 rounded-2xl text-2xl font-black shadow-2xl border-4 border-amber-300 animate-pulse">
@@ -1104,7 +1278,6 @@ export default function DaedalusLab3D() {
         </div>
       )}
 
-      {/* Puzzle Examination Modal */}
       {examining && (
         <div className="absolute inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6 z-40">
           <div className="bg-gradient-to-br from-stone-900 to-stone-800 border-4 border-amber-600 rounded-2xl p-10 max-w-3xl shadow-2xl">
@@ -1203,7 +1376,7 @@ export default function DaedalusLab3D() {
                     </p>
                   </div>
                   <p className="text-red-400 text-xl mb-2">💡 Indizio:</p>
-                  <p className="text-red-200">Scrivi le <span className="text-yellow-300 font-bold">iniziali</span> del percorso (es: N-E-E-S...)</p>
+                  <p className="text-red-200">Scrivi le <span className="text-yellow-300 font-bold">iniziali</span> del percorso</p>
                 </div>
                 <input
                   type="text"
@@ -1242,7 +1415,7 @@ export default function DaedalusLab3D() {
                     In quale direzione si trova <span className="text-cyan-300 font-bold">Itaca</span>?"
                   </p>
                   <p className="text-teal-400 text-xl mb-2">💡 Indizio:</p>
-                  <p className="text-teal-200">Itaca è a <span className="text-cyan-300 font-bold">_ _ _ _ _</span> della Grecia continentale</p>
+                  <p className="text-teal-200">Itaca è a <span className="text-cyan-300 font-bold">_ _ _ _ _</span> della Grecia</p>
                 </div>
                 <input
                   type="text"
